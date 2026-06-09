@@ -26,9 +26,38 @@ const state = {
   bucket: "hour",
 };
 
+// --- theming ---
+
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function chartTheme() {
+  return { tick: cssVar("--muted") || "#8a93a6", grid: cssVar("--border") || "#262b35", text: cssVar("--text") || "#e6e8ee" };
+}
+
+function applyChartTheme() {
+  const t = chartTheme();
+  const all = [charts.co2, charts.temp, charts.hum, charts.pres, compareChart];
+  for (const c of all) {
+    c.options.plugins.legend.labels.color = t.text;
+    c.options.scales.x.ticks.color = t.tick;
+    c.options.scales.x.grid.color = t.grid;
+    c.options.scales.y.ticks.color = t.tick;
+    c.options.scales.y.grid.color = t.grid;
+    if (c.options.scales.y.title) c.options.scales.y.title.color = t.tick;
+    c.update("none");
+  }
+}
+
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("theme", theme); } catch (e) { /* ignore */ }
+  applyChartTheme();
+  setMapTheme(theme);
+}
+
 // --- charts ---
 
 function makeChart(ctx, label, color) {
+  const t = chartTheme();
   return new Chart(ctx, {
     type: "line",
     data: { labels: [], datasets: [{
@@ -37,10 +66,10 @@ function makeChart(ctx, label, color) {
     }] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { labels: { color: "#e6e8ee" } } },
+      plugins: { legend: { labels: { color: t.text } }, tooltip: { mode: "index", intersect: false } },
       scales: {
-        x: { ticks: { color: "#8a93a6", maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { color: "#262b35" } },
-        y: { ticks: { color: "#8a93a6" }, grid: { color: "#262b35" } },
+        x: { ticks: { color: t.tick, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { color: t.grid } },
+        y: { ticks: { color: t.tick }, grid: { color: t.grid } },
       },
     },
   });
@@ -78,6 +107,57 @@ function setSeries(points, bucket) {
   charts.hum.data.labels = labels; charts.hum.data.datasets[0].data = points.map((p) => p.humidity);
   charts.pres.data.labels = labels; charts.pres.data.datasets[0].data = points.map((p) => p.air_pressure);
   Object.values(charts).forEach((c) => c.update("none"));
+}
+
+// --- map ---
+
+let _map = null;
+let _markers = {};
+let _tileLayer = null;
+const TILES = {
+  dark: { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" },
+  light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" },
+};
+const TILE_ATTR = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/attributions">CARTO</a>';
+
+function setMapTheme(theme) {
+  if (!_map) return;
+  if (_tileLayer) _map.removeLayer(_tileLayer);
+  _tileLayer = L.tileLayer(TILES[theme] ? TILES[theme].url : TILES.dark.url, { attribution: TILE_ATTR, maxZoom: 18 });
+  _tileLayer.addTo(_map);
+}
+
+function initMap() {
+  if (typeof L === "undefined") return;
+  _map = L.map("map", { scrollWheelZoom: false, attributionControl: true });
+  setMapTheme(document.documentElement.dataset.theme || "dark");
+  const pts = [];
+  for (const u of state.meta.universities) {
+    if (u.latitude == null || u.longitude == null) continue;
+    const real = !u.is_demo;
+    const m = L.circleMarker([u.latitude, u.longitude], {
+      radius: real ? 10 : 8,
+      color: real ? "#4cc9f0" : "#4361ee",
+      fillColor: real ? "#4cc9f0" : "#4361ee",
+      fillOpacity: 0.85, weight: 2,
+    }).addTo(_map);
+    m.bindPopup(
+      `<b>${ccFlag(u.country_code)} ${u.name}</b><br>${u.city || ""}, ${u.country || ""}<br>` +
+      `${u.device_count || (u.devices || []).length} capteur(s) · ${Number(u.message_count || 0).toLocaleString()} mesures` +
+      `${u.is_demo ? "<br><i>site de démonstration</i>" : ""}`
+    );
+    m.on("click", () => applyUniversitySelection(u.slug));
+    _markers[u.slug] = m;
+    pts.push([u.latitude, u.longitude]);
+  }
+  if (pts.length) _map.fitBounds(pts, { padding: [40, 40], maxZoom: 6 });
+}
+
+function highlightMarker(slug) {
+  for (const [s, m] of Object.entries(_markers)) {
+    m.setStyle({ weight: s === slug ? 4 : 2 });
+    if (s === slug) m.bringToFront();
+  }
 }
 
 // --- cards / table ---
@@ -192,10 +272,10 @@ function renderCompare(a) {
 // --- heatmap ---
 
 function valueToColor(v, min, max) {
-  if (v === null || v === undefined || max === min) return "#1d2129";
+  if (v === null || v === undefined || max === min) return cssVar("--panel-2") || "#1d2129";
   const t = Math.max(0, Math.min(1, (v - min) / (max - min)));
   const hue = 220 - 220 * t; // 220 (blue) -> 0 (red)
-  return `hsl(${hue}, 70%, ${28 + 22 * t}%)`;
+  return `hsl(${hue}, 70%, ${30 + 20 * t}%)`;
 }
 
 function renderHeatmap(h) {
@@ -212,11 +292,8 @@ function renderHeatmap(h) {
   for (const c of h.cells) grid[c.day + "|" + c.hour] = c.value;
 
   const frag = document.createDocumentFragment();
-  // header row
   frag.appendChild(hmCell("", "hm-corner"));
-  for (let hr = 0; hr < 24; hr++) {
-    frag.appendChild(hmCell(hr % 3 === 0 ? hr : "", "hm-hhead"));
-  }
+  for (let hr = 0; hr < 24; hr++) frag.appendChild(hmCell(hr % 3 === 0 ? hr : "", "hm-hhead"));
   for (const day of days) {
     frag.appendChild(hmCell(day.slice(5), "hm-dhead"));
     for (let hr = 0; hr < 24; hr++) {
@@ -232,9 +309,9 @@ function renderHeatmap(h) {
 
   const unit = { temperature: "°C", co2: "ppm", humidity: "%", air_pressure: "hPa" }[h.metric] || "";
   legend.innerHTML =
-    `<span>${fmt(h.min, 1)} ${unit}</span>` +
+    `<span>min ${fmt(h.min, 1)} ${unit}</span>` +
     `<span class="hm-gradient"></span>` +
-    `<span>${fmt(h.max, 1)} ${unit}</span>` +
+    `<span>max ${fmt(h.max, 1)} ${unit}</span>` +
     `<span class="muted">(heures UTC)</span>`;
 }
 
@@ -253,12 +330,43 @@ function renderStats(s) {
   const ps = document.getElementById("period-stats");
   if (s.messages) {
     ps.textContent =
-      `CO2 ${fmtInt(s.avg_co2)} ppm (${fmtInt(s.min_co2)}–${fmtInt(s.max_co2)}) · ` +
-      `T° ${fmt(s.avg_temp, 1)}°C (${fmt(s.min_temp, 1)}–${fmt(s.max_temp, 1)}) · ` +
-      `H ${fmt(s.avg_hum, 1)}% (${fmt(s.min_hum, 1)}–${fmt(s.max_hum, 1)})`;
+      `CO₂ ${fmtInt(s.avg_co2)} ppm (${fmtInt(s.min_co2)}–${fmtInt(s.max_co2)}) · ` +
+      `T° ${fmt(s.avg_temp, 1)} °C (${fmt(s.min_temp, 1)}–${fmt(s.max_temp, 1)}) · ` +
+      `H ${fmt(s.avg_hum, 1)} % (${fmt(s.min_hum, 1)}–${fmt(s.max_hum, 1)})`;
   } else {
     ps.textContent = "Aucune donnée sur la période";
   }
+}
+
+// --- CSV export ---
+
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+async function exportCSV() {
+  const msgs = await DataSource.messages(scopeParams({ limit: 5000 }));
+  const cols = [
+    ["id", "id"], ["received_at", "recu_le"], ["co2", "co2_ppm"], ["temperature", "temperature_C"],
+    ["humidity", "humidite_pct"], ["air_pressure", "pression_hPa"], ["bat_v", "batterie_V"],
+    ["rssi", "rssi_dBm"], ["snr", "snr_dB"], ["f_cnt", "f_cnt"],
+  ];
+  const head = cols.map((c) => c[1]).join(",");
+  const lines = msgs.map((m) => cols.map((c) => csvCell(m[c[0]])).join(","));
+  const csv = [head, ...lines].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const u = state.meta.universities.find((x) => x.slug === state.scope.university);
+  const dev = u && (u.devices || []).find((d) => d.device_id === state.scope.device);
+  const label = (dev && dev.label) || state.scope.device || state.scope.university || "donnees";
+  const per = state.nav.period || "plage";
+  a.href = url;
+  a.download = `climacampus_${label}_${per}.csv`.replace(/\s+/g, "-");
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // --- orchestration ---
@@ -336,6 +444,20 @@ function renderSiteMeta() {
     `<span class="site-sub">${parts.join(" · ")}</span>`;
 }
 
+function applyUniversitySelection(slug) {
+  state.scope.university = slug;
+  document.getElementById("sel-uni").value = slug;
+  fillDeviceSelector();
+  renderSiteMeta();
+  highlightMarker(slug);
+  if (_map && _markers[slug]) {
+    const ll = _markers[slug].getLatLng();
+    _map.setView(ll, Math.max(_map.getZoom(), 5), { animate: true });
+    _markers[slug].openPopup();
+  }
+  reloadData();
+}
+
 // --- live updates ---
 
 function matchesScope(r) {
@@ -380,6 +502,10 @@ function setConn(ok) {
 
 // --- wiring ---
 
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+});
+
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
@@ -417,17 +543,24 @@ document.getElementById("range-clear").addEventListener("click", () => {
   reloadData();
 });
 
-document.getElementById("sel-uni").addEventListener("change", (e) => {
-  state.scope.university = e.target.value;
-  fillDeviceSelector();
-  renderSiteMeta();
-  reloadData();
-});
+document.getElementById("csv-export").addEventListener("click", exportCSV);
+
+document.getElementById("sel-uni").addEventListener("change", (e) => applyUniversitySelection(e.target.value));
 
 document.getElementById("sel-device").addEventListener("change", (e) => {
   state.scope.device = e.target.value;
   reloadData();
 });
+
+function renderAbout() {
+  const gen = document.getElementById("about-generated");
+  if (gen) gen.textContent = state.meta.generated_at ? new Date(state.meta.generated_at).toLocaleString() : "—";
+  const cov = document.getElementById("about-coverage");
+  const real = (state.meta.universities || []).find((u) => !u.is_demo);
+  if (cov && real && real.message_count) {
+    cov.textContent = ` Historique : ${Number(real.message_count).toLocaleString()} mesures.`;
+  }
+}
 
 async function init() {
   state.meta = await DataSource.meta();
@@ -439,7 +572,11 @@ async function init() {
   const real = unis.find((u) => !u.is_demo) || unis[0];
   state.scope.university = real.slug;
   fillSelectors();
+  renderAbout();
   setConn(false);
+  initMap();
+  highlightMarker(state.scope.university);
+  applyChartTheme();
   await reloadData();
   if (DataSource.live) DataSource.subscribe(onLiveReading, setConn);
 }
