@@ -11,5 +11,4 @@ backups
 dist
 .env
 feeds.json
-systemd
 build_static.py
