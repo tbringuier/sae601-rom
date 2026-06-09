@@ -3,9 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ClimaCampus — Réseau météo universitaire</title>
+  <title>ClimaCampus — Réseau météo universitaire (SAÉ601-ROM)</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <script>
+    // Apply saved theme before first paint to avoid a flash.
+    (function () {
+      try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark"; }
+      catch (e) { document.documentElement.dataset.theme = "dark"; }
+    })();
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <header>
@@ -13,11 +22,14 @@
       <h1>Clima<span class="accent">Campus</span></h1>
       <p class="tagline">Réseau participatif universitaire — le climat, partout, ensemble 🌍🇪🇺</p>
     </div>
-    <div class="status">
-      <span id="conn-dot" class="dot off"></span>
-      <span id="conn-text">…</span>
-      <span class="sep">·</span>
-      <span id="net-summary">—</span>
+    <div class="head-right">
+      <div class="status">
+        <span id="conn-dot" class="dot off"></span>
+        <span id="conn-text">…</span>
+        <span class="sep">·</span>
+        <span id="net-summary">—</span>
+      </div>
+      <button id="theme-toggle" class="icon-btn" title="Basculer clair / sombre" aria-label="Thème">🌗</button>
     </div>
   </header>
 
@@ -31,6 +43,15 @@
       <select id="sel-device"></select>
     </div>
     <div class="site-meta" id="site-meta"></div>
+  </section>
+
+  <section class="map-box">
+    <div id="map"></div>
+    <div class="map-legend">
+      <span><i class="mk mk-real"></i> capteur réel</span>
+      <span><i class="mk mk-demo"></i> démonstration</span>
+      <span class="muted">Cliquez un marqueur pour explorer ses données.</span>
+    </div>
   </section>
 
   <section class="cards">
@@ -108,8 +129,9 @@
       <span>→</span>
       <input type="date" id="range-to">
       <button id="range-apply" class="btn">Appliquer</button>
-      <button id="range-clear" class="btn ghost">×</button>
+      <button id="range-clear" class="btn ghost" title="Réinitialiser">×</button>
     </div>
+    <button id="csv-export" class="btn" title="Télécharger les mesures affichées">⤓ Exporter CSV</button>
     <div class="period-stats" id="period-stats">—</div>
   </section>
 
@@ -148,8 +170,8 @@
       <table>
         <thead>
           <tr>
-            <th>#</th><th>Reçu</th><th>CO2</th><th>T°</th><th>H%</th><th>P</th>
-            <th>Bat</th><th>RSSI</th><th>SNR</th><th>f_cnt</th>
+            <th>#</th><th>Reçu</th><th>CO₂ (ppm)</th><th>T° (°C)</th><th>Hum. (%)</th><th>Pression (hPa)</th>
+            <th>Batt. (V)</th><th>RSSI (dBm)</th><th>SNR (dB)</th><th>f_cnt</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -157,8 +179,49 @@
     </div>
   </section>
 
+  <section class="about">
+    <h2>Transparence &amp; sources</h2>
+    <div class="about-grid">
+      <div>
+        <h3>Données mesurées</h3>
+        <p>
+          Capteur <strong>Dragino AQS01-L</strong> (salle <strong>R201</strong>, IUT de
+          Villetaneuse) sur réseau <strong>LoRaWAN</strong> via
+          <a href="https://www.thethingsnetwork.org/" target="_blank" rel="noopener">The Things Network</a>.
+          <span id="about-coverage"></span> Les données de Villetaneuse sont <strong>réelles</strong>.
+        </p>
+      </div>
+      <div>
+        <h3>Normales climatiques</h3>
+        <p>
+          Comparaison aux <strong>normales mensuelles 1991–2020</strong> de
+          <a href="https://meteofrance.com/climat/normales-climatiques-1991-2020" target="_blank" rel="noopener">Météo-France</a>
+          pour la France ; moyennes nationales indicatives pour les autres pays.
+          Le capteur étant en intérieur, l'écart absolu aux normales extérieures est
+          attendu&nbsp;: l'algorithme met en avant la <strong>variation relative</strong>.
+        </p>
+      </div>
+      <div>
+        <h3>Universités de démonstration</h3>
+        <p>
+          Madrid, Berlin, Milan et Lisbonne sont des sites <strong>simulés</strong>
+          (données générées) pour illustrer le réseau participatif européen. Ils ne
+          correspondent à aucune mesure réelle.
+        </p>
+      </div>
+      <div>
+        <h3>Code source</h3>
+        <p>
+          Projet open source —
+          <a href="https://github.com/tbringuier/sae601-rom" target="_blank" rel="noopener">github.com/tbringuier/sae601-rom</a>.
+          Build statique généré le <span id="about-generated">—</span>.
+        </p>
+      </div>
+    </div>
+  </section>
+
   <footer>
-    <p>Station météo LoRaWAN · SAÉ BUT3 R&amp;T ROM — IUT de Villetaneuse</p>
+    <p>ClimaCampus · Station météo LoRaWAN — <strong>SAÉ601-ROM</strong>, BUT3 R&amp;T ROM, IUT de Villetaneuse</p>
     <p class="authors">Tristan Bringuier · Irsa Ahmad · Nolan Heu--Combe · Thierry Banoho</p>
   </footer>
 

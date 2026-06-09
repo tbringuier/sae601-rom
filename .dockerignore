@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+backups
+*.log
+dist
+.env
+feeds.json
+systemd
+build_static.py

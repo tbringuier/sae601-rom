@@ -1,0 +1,14 @@
+services:
+  climacampus:
+    build: .
+    image: climacampus
+    container_name: climacampus
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./feeds.json:/config/feeds.json:ro
+      - climacampus-data:/data
+    restart: unless-stopped
+
+volumes:
+  climacampus-data:

@@ -239,6 +239,9 @@ def seed_universities(conn: sqlite3.Connection) -> dict[str, int]:
                 "UPDATE devices SET university_id = ? WHERE application_id = ?",
                 (uid, app_id),
             )
+        # Friendly display names (e.g. room numbers) for known devices.
+        for dev_id, label in (u.get("device_labels") or {}).items():
+            conn.execute("UPDATE devices SET label = ? WHERE device_id = ?", (label, dev_id))
     conn.commit()
     return slug_to_id
 

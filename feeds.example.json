@@ -10,6 +10,7 @@
       "longitude": 2.3398,
       "timezone": "Europe/Paris",
       "applications": ["capteurco2sensor"],
+      "device_labels": { "co2co2": "R201" },
       "feed": {
         "enabled": true,
         "host": "eu1.cloud.thethings.network",
