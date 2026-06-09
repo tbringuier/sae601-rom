@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClimaCampus — Réseau météo universitaire</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Clima<span class="accent">Campus</span></h1>
+      <p class="tagline">Réseau participatif universitaire — le climat, partout, ensemble 🌍🇪🇺</p>
+    </div>
+    <div class="status">
+      <span id="conn-dot" class="dot off"></span>
+      <span id="conn-text">…</span>
+      <span class="sep">·</span>
+      <span id="net-summary">—</span>
+    </div>
+  </header>
+
+  <section class="network-bar">
+    <div class="field">
+      <label for="sel-uni">Université</label>
+      <select id="sel-uni"></select>
+    </div>
+    <div class="field">
+      <label for="sel-device">Capteur</label>
+      <select id="sel-device"></select>
+    </div>
+    <div class="site-meta" id="site-meta"></div>
+  </section>
+
+  <section class="cards">
+    <div class="card co2">
+      <div class="label">CO<sub>2</sub></div>
+      <div class="value"><span id="v-co2">—</span><span class="unit">ppm</span></div>
+      <div class="sub" id="v-co2-flags"></div>
+    </div>
+    <div class="card temp">
+      <div class="label">Température</div>
+      <div class="value"><span id="v-temp">—</span><span class="unit">°C</span></div>
+      <div class="sub" id="v-temp-flags"></div>
+    </div>
+    <div class="card hum">
+      <div class="label">Humidité</div>
+      <div class="value"><span id="v-hum">—</span><span class="unit">%</span></div>
+    </div>
+    <div class="card pres">
+      <div class="label">Pression</div>
+      <div class="value"><span id="v-pres">—</span><span class="unit">hPa</span></div>
+    </div>
+    <div class="card batt">
+      <div class="label">Batterie</div>
+      <div class="value"><span id="v-batt">—</span><span class="unit">%</span></div>
+      <div class="sub"><span id="v-batv">—</span> V</div>
+    </div>
+    <div class="card radio">
+      <div class="label">Radio LoRa</div>
+      <div class="value small"><span id="v-rssi">—</span> dBm</div>
+      <div class="sub">SNR <span id="v-snr">—</span> dB</div>
+    </div>
+  </section>
+
+  <section class="anomaly" id="anomaly-panel">
+    <div class="anomaly-head">
+      <h2>Détection d'anomalie climatique</h2>
+      <span class="badge" id="anomaly-badge">—</span>
+    </div>
+    <div class="anomaly-grid">
+      <div class="anomaly-figure">
+        <div class="big" id="anomaly-delta">—</div>
+        <div class="big-label">écart à la normale saisonnière</div>
+      </div>
+      <div class="anomaly-detail">
+        <div id="anomaly-text" class="anomaly-text">—</div>
+        <div class="anomaly-stats" id="anomaly-stats"></div>
+      </div>
+    </div>
+    <details class="how">
+      <summary>Comment fonctionne l'algorithme ?</summary>
+      <p>
+        Pour chaque jour, on calcule la température moyenne mesurée puis on la compare à la
+        <strong>normale climatique mensuelle nationale</strong> du pays du capteur
+        (référentiel Météo-France 1991–2020 pour la France). L'écart est normalisé par
+        l'écart-type saisonnier <code>σ</code> pour obtenir un <strong>z-score</strong> :
+        <code>z = (T_mesurée − T_normale) / σ</code>. On classe ensuite l'écart :
+        <code>|z| &lt; 1</code> normal, <code>1 ≤ |z| &lt; 2</code> anomalie modérée,
+        <code>|z| ≥ 2</code> anomalie forte. Un écart positif persistant indique un climat
+        <strong>plus chaud que la normale</strong> (signal de réchauffement).
+      </p>
+      <p class="caveat" id="anomaly-caveat"></p>
+    </details>
+  </section>
+
+  <section class="nav-bar">
+    <div class="tabs" role="tablist" aria-label="Période">
+      <button data-period="day"   class="tab">Jour</button>
+      <button data-period="week"  class="tab active">Semaine</button>
+      <button data-period="month" class="tab">Mois</button>
+      <button data-period="all"   class="tab">Tout</button>
+    </div>
+    <div class="range">
+      <label>Plage</label>
+      <input type="date" id="range-from">
+      <span>→</span>
+      <input type="date" id="range-to">
+      <button id="range-apply" class="btn">Appliquer</button>
+      <button id="range-clear" class="btn ghost">×</button>
+    </div>
+    <div class="period-stats" id="period-stats">—</div>
+  </section>
+
+  <section class="compare-box">
+    <div class="chart-head">
+      <h2>Température mesurée vs normale nationale</h2>
+      <span class="muted" id="compare-sub">—</span>
+    </div>
+    <div class="chart-box tall"><canvas id="chart-compare"></canvas></div>
+  </section>
+
+  <section class="charts">
+    <div class="chart-box"><canvas id="chart-co2"></canvas></div>
+    <div class="chart-box"><canvas id="chart-temp"></canvas></div>
+    <div class="chart-box"><canvas id="chart-hum"></canvas></div>
+    <div class="chart-box"><canvas id="chart-pres"></canvas></div>
+  </section>
+
+  <section class="heatmap-box">
+    <div class="chart-head">
+      <h2>Carte de chaleur — heure × jour</h2>
+      <div class="metric-tabs" id="metric-tabs">
+        <button data-metric="temperature" class="mtab active">Température</button>
+        <button data-metric="co2" class="mtab">CO₂</button>
+        <button data-metric="humidity" class="mtab">Humidité</button>
+        <button data-metric="air_pressure" class="mtab">Pression</button>
+      </div>
+    </div>
+    <div id="heatmap" class="heatmap"></div>
+    <div class="heatmap-legend" id="heatmap-legend"></div>
+  </section>
+
+  <section class="table-box">
+    <h2>Derniers messages <span class="muted" id="tbl-period"></span></h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Reçu</th><th>CO2</th><th>T°</th><th>H%</th><th>P</th>
+            <th>Bat</th><th>RSSI</th><th>SNR</th><th>f_cnt</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <p>Station météo LoRaWAN · SAÉ BUT3 R&amp;T ROM — IUT de Villetaneuse</p>
+    <p class="authors">Tristan Bringuier · Irsa Ahmad · Nolan Heu--Combe · Thierry Banoho</p>
+  </footer>
+
+  <script src="/static/datasource-api.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

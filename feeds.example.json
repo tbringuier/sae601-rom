@@ -1,0 +1,44 @@
+{
+  "universities": [
+    {
+      "slug": "iut-villetaneuse",
+      "name": "IUT de Villetaneuse — Université Sorbonne Paris Nord",
+      "city": "Villetaneuse",
+      "country": "France",
+      "country_code": "FR",
+      "latitude": 48.9569,
+      "longitude": 2.3398,
+      "timezone": "Europe/Paris",
+      "applications": ["capteurco2sensor"],
+      "feed": {
+        "enabled": true,
+        "host": "eu1.cloud.thethings.network",
+        "port": 8883,
+        "tls": true,
+        "user": "capteurco2sensor@ttn",
+        "password": "NNSXS.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "topic": "v3/+/devices/+/up"
+      }
+    },
+    {
+      "slug": "univ-madrid",
+      "name": "Universidad Politécnica de Madrid",
+      "city": "Madrid",
+      "country": "Espagne",
+      "country_code": "ES",
+      "latitude": 40.4406,
+      "longitude": -3.7264,
+      "timezone": "Europe/Madrid",
+      "applications": ["upm-aqs"],
+      "feed": {
+        "enabled": false,
+        "host": "eu1.cloud.thethings.network",
+        "port": 8883,
+        "tls": true,
+        "user": "upm-aqs@ttn",
+        "password": "NNSXS.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "topic": "v3/+/devices/+/up"
+      }
+    }
+  ]
+}

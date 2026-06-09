@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets & machine-local config
+.env
+feeds.json
+
+# Runtime data & artifacts
+*.db
+*.db-wal
+*.db-shm
+backups/
+*.log
+app.log*
+
+# Static build output (published to the `pages` branch)
+dist/
